@@ -22,25 +22,25 @@ async def node_research(state: OrchestraState):
             print(q)
         print("--"*50)
         msgs = [
-            HumanMessage(content=f"Найди дополнительную информацию по следующим вопросам и ответам: {state['questions']} по теме {state['topic']}. "
+            HumanMessage(content=f"Найди дополнительную информацию по следующим вопросам и ответам: {questions} по теме {state['topic']}. "
                                  f"Найди 3–5 ссылок и дай подробную информацию.")
         ]
-        res = await researcher.ainvoke(
+        full_response = ""
+        async for chunk in researcher.astream(
             {"messages": msgs},
-            config={"configurable": {"thread_id": "research"}}
-        )
+            config={"configurable": {"thread_id": "research"}},
+            stream_mode = "messages"
+        ):
+            if isinstance(chunk, AIMessage) and chunk.content and not chunk.tool_calls:
+                full_response += chunk.content
+
         draft_old = state["draft"]
-        draft_new = ""
-        seen = set()
-        for m in res["messages"]:
-            if isinstance(m, AIMessage) and m.content and not m.tool_calls:
-                text = m.content.strip()
-                if len(text) > 20 and text not in seen:
-                    draft_new += text + "\n\n"
-                    seen.add(text)
+        draft_new = full_response
         combined_draft = draft_old + "\n\n" + draft_new
+
+
         return {
-            "messages": res["messages"],
+            "messages": [full_response],
             "topic": topic,
             "draft": combined_draft,
             "questions": [],
